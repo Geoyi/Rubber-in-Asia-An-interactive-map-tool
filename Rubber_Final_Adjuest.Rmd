@@ -1,0 +1,359 @@
+---
+title: "Sustainable and Responsible Rubber Cultivation and Investment in Asia"
+Author: Zhuangfang Yi
+Contact: geospatialanalystyi@gmail.com
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: columns
+    vertical_layout: fill
+    social: menu
+    theme: cerulean
+---
+
+```{r setup, include=FALSE}
+
+
+library(leaflet) # devtools::install_github('rstudio/leaflet')
+library(shiny)
+library(ggplot2) # devtools::install_github('hadley/ggplot2')
+library(flexdashboard) # devtools::install_github('rstudio/flexdashboard')
+library(mapproj)
+library(readr)
+library(ggthemes)
+library(jsonlite)
+library(maps)
+library(dplyr)
+library(maptools)
+library(crosstalk)
+library(shapefiles)
+library(RColorBrewer)
+library(geojsonio)
+library(sp)
+library(rgdal)
+library(viridis)
+library(htmltools)
+library(gapminder)
+library(rmapshaper)
+library(sf)
+library(plotly)
+
+df.csv <- as.data.frame(read.csv("Rubber_df_test.csv", sep = ","))
+Price <- as.data.frame(read.csv("RubberPrice.csv", sep = ","))
+AsianRubber <- geojsonio::geojson_read("Rubbber_simple.geojson",what = "sp")
+```
+
+
+
+Rubber Profits and Biodiversity Conservation
+======================================================================
+
+
+Column {data-width=200}
+-----------------------------------------------------------------------
+
+
+```{r}
+# selectInput('Country_name', label = 'Country', choices = as.character(AsianRubber$Country), multiple = TRUE)
+# filter_slider("MiniPriceT", "Minimum Profitable Price ($/kg)", RubberPoly$transform(as.data.frame), ~ MiniPriceT)
+# RubberPoly <- SharedData$new(as.data.frame(AsianRubber[sample(nrow(AsianRubber), 2372),]))
+# RubberPoly1 <- as.data.frame(AsianRubber) %>% SharedData$new()
+shared_rubber_df <-  AsianRubber %>% as.data.frame() %>% SharedData$new()
+filter_slider("MiniPriceT", "Minimum Profitable Price ($/kg)", shared_rubber_df,column=~ MiniPriceT)
+filter_slider("Biodiversi", "Total Species Number (species)", shared_rubber_df, column=~ Biodiversi)
+```
+
+---
+
+This map Application is developed to support the Guidelines for Sustainable Development of Natural Rubber, which led by China Chamber of Commerce of Metals, Minerals & Chemicals Importers & Exporters with supports from World Agroforestry Centre, East and Center Asia Office (ICRAF).
+Asia produces >90% of global natural rubber primarily in monoculture for highest yield in limited growing areas. Rubber is largely harvested by smallholders in remote, undeveloped areas with limited access to markets, imposing substantial labor and opportunity costs. Typically, rubber plantations are introduced in high productivity areas, pushed onto marginal lands by industrial crops and uses and become marginally profitable for various reasons. 
+
+**Credits:**    
+[Zhuangfang Yi](https://geoyi.org) is the developer of this application. She has Ph.D. degree in Ecological Economics, and who is also a data scientist that loves to build applications for multi-stakeholders for better decision making. The geospatial analysis was done by Dr. Yi and Dr. Charles H. Cannon. Dr. Cannon financially supports the research. They wrote a peer-reviewed article together to explain the data collection, analysis, and policy recommendations based on the results. Dr. Cannon currently is the Director of Tree Science Center in The Morton Arboretum, IL, USA.
+
+---
+
+
+Column {data-width=1000 .tabset .tabset-fade}
+-----------------------------------------------------------------------
+
+### Rubber Profits v.s Biodiversity Conservation
+
+```{r}
+
+library(sf)
+library(plotly)
+
+
+plot_ly(shared_rubber_df, x = ~MiniPriceT, y= ~Biodiversi, color = ~RubberArea, size = ~RubberArea/1000 ,text = ~paste( RubberArea, "ha @",County, ", ", Country), type = 'scatter', mode = 'markers') %>%
+  layout(
+      xaxis = list(title = "Minimum Profitable Rubber Price (USD/kg)"),
+      yaxis = list(title = "Biodiversity (total species number)")
+    )
+# layout(xaxis = "Biodiversity (total species number)", yaxis = "Minimum Profitable Rubber Price (USD/kg)")  
+```
+
+
+
+### Rubber Cultivation in Asia
+
+```{r}
+bins <- c(0, 1000, 30000, 50000, 80000, 100000, 300000,600000, 900000)
+pal <- colorBin("YlOrRd", domain = AsianRubber$RubberArea , bins = bins)
+labels <- sprintf("%s , <strong>%s</strong><br/>%g ha",
+  AsianRubber$County,AsianRubber$Country, AsianRubber$RubberArea
+) %>% lapply(htmltools::HTML)
+
+
+shared_rubber <-  AsianRubber %>%  SharedData$new()
+m <- leaflet(shared_rubber) %>%
+                       addTiles() %>% 
+                       setView(lng=112.0, lat =12.0, zoom = 5)
+m %>%
+         addPolygons(fillColor = ~pal(RubberArea),
+                     weight = 1,
+                     opacity = 1,
+                     color = "white",
+                     dashArray = "3",
+                     fillOpacity = 0.7,
+                     highlight = highlightOptions(
+                       weight = 5,
+                       color = "#666",
+                       dashArray = "",
+                       fillOpacity = 0.7,
+                       bringToFront = TRUE),
+                     label = labels,
+                     labelOptions = labelOptions(
+                     style = list("font-weight" = "normal", padding = "3px 8px"),
+                     textsize = "15px",
+                     direction = "auto")) %>% 
+                       addLegend(pal = pal, values = AsianRubber$RubberArea, opacity = 0.7, title = "Rubber Cultivation Area", position = "bottomright") %>% addMiniMap()
+
+```
+
+
+
+### Minimum Profitable Rubber Price 
+
+```{r}
+pal <- colorNumeric(c("yellow", "red"), 0:6)
+# pal <- colorBin("RdPu", domain = AsianRubber$MiniPriceT , bins = bins)
+labels <- sprintf("%s , <strong>%s</strong><br/>%g USD/kg",
+  AsianRubber$County,AsianRubber$Country, AsianRubber$MiniPriceT
+) %>% lapply(htmltools::HTML)
+
+
+shared_rubber <-  AsianRubber %>%  SharedData$new()
+m <- leaflet(shared_rubber) %>%
+                       addTiles() %>% 
+                       setView(lng=112.0, lat =12.0, zoom = 5)
+m %>%
+         addPolygons(fillColor = ~pal(MiniPriceT),
+                     weight = 1,
+                     opacity = 1,
+                     color = "white",
+                     dashArray = "3",
+                     fillOpacity = 0.7,
+                     highlight = highlightOptions(
+                       weight = 5,
+                       color = "#666",
+                       dashArray = "",
+                       fillOpacity = 0.7,
+                       bringToFront = TRUE),
+                     label = labels,
+                     labelOptions = labelOptions(
+                     style = list("font-weight" = "normal", padding = "3px 8px"),
+                     textsize = "15px",
+                     direction = "auto")) %>% 
+                       addLegend(pal = pal, values = AsianRubber$MiniPriceT, opacity = 0.7, title = "Minimum Profitable Rubber Price ($/kg)", position = "bottomright") %>% addMiniMap()
+
+```
+
+
+
+
+### Biodiversity (Amphibian, Reptiles, Mammals and Birds) 
+
+```{r}
+bins <- c(0, 50, 100, 200, 400, 600, 800,900, 1000)
+pal <- colorBin("Greens", domain = AsianRubber$Biodiversi , bins = bins)
+labels <- sprintf("%s , <strong>%s</strong><br/>%g species",
+  AsianRubber$County,AsianRubber$Country, AsianRubber$Biodiversi
+) %>% lapply(htmltools::HTML)
+
+
+shared_rubber <-  AsianRubber %>%  SharedData$new()
+m <- leaflet(shared_rubber) %>%
+                       addTiles() %>% 
+                       setView(lng=112.0, lat =12.0, zoom = 5)
+m %>%
+         addPolygons(fillColor = ~pal(Biodiversi),
+                     weight = 1,
+                     opacity = 1,
+                     color = "white",
+                     dashArray = "3",
+                     fillOpacity = 0.7,
+                     highlight = highlightOptions(
+                       weight = 5,
+                       color = "#666",
+                       dashArray = "",
+                       fillOpacity = 0.7,
+                       bringToFront = TRUE),
+                     label = labels,
+                     labelOptions = labelOptions(
+                     style = list("font-weight" = "normal", padding = "3px 8px"),
+                     textsize = "15px",
+                     direction = "auto")) %>% 
+                       addLegend(pal = pal, values = AsianRubber$Biodiversi, opacity = 0.7, title = "Biodiversity (Amphibian, amphbians, reptiles, mammals and birds)", position = "bottomright") %>% addMiniMap()
+
+```
+
+
+
+Risks, SocioEconomic Factors and Historical Rubber Price
+=====================================  
+
+Row {.tabset .tabset-fade}
+-------------------------------------
+### Topographic Risk
+
+```{r}
+# pal<- brewer.pal(8,"YlOrBr")
+ 
+df.csv %>%
+  filter(Sum_slopVa > 0) -> Slope
+bins <- c(0, 20, 50, 100, 300, 500, 800,1000, 1300)
+pal <- colorBin("YlOrBr", domain = Slope$Sum_slopVa , bins = bins)
+
+labels <- sprintf(
+  "%s , <strong>%s</strong><br/>%g index",
+  Slope$County,", ", Slope$Country, ", ", Slope$Sum_slopVa
+) %>% lapply(htmltools::HTML)
+
+
+map1 <- leaflet(Slope) %>% 
+  addTiles() %>% 
+  setView(lng=110.0, lat =10.0, zoom = 5)
+
+map1 %>% 
+  addCircleMarkers(~longitude, ~latitute, radius = ~Sum_slopVa/100, color = ~pal(Sum_slopVa), fillOpacity = 0.5, popup = paste(Slope$Sum_slopVa, "score , "    ,Slope$County, ", ", Slope$Country)) %>%
+  addLegend("bottomleft", pal=pal, title="Slope/Topographic Risk Intensity", labels = labels, value = ~Sum_slopVa)
+```
+
+
+### Tropical Strom
+
+```{r}
+
+# pal<- brewer.pal(3, "YlGnBu")
+pal <- colorNumeric(c("green", "blue"), 1:2)
+df.csv %>%
+  filter(Sum_StormV > 0) -> Storm
+labels <- sprintf(
+  "%s , <strong>%s</strong><br/>%g index",
+  Storm$County,", ", Storm$Country, ", ", Storm$Sum_StormV
+) %>% lapply(htmltools::HTML)
+
+# Radius <- sqrt(Storm$Sum_StormV)*10
+# binpal <- colorBin("Blues", Storm$Sum_StormV, 6, pretty = T)
+map <- leaflet(Storm) %>% 
+               addTiles() %>% 
+               setView(lng=103.0, lat =10.0, zoom = 5)
+map%>% 
+  addCircleMarkers( ~longitude, ~latitute, radius = ~ Sum_StormV *5, color = ~pal(Sum_StormV), fillOpacity = 0.5, popup = paste("Storm Intense Index: ",                      Storm$Sum_StormV,", ", Storm$County,", ", Storm$Country)) %>%
+  addLegend("bottomleft", pal=pal, title="Storm Risk Intensity", labels = labels, value = ~Sum_StormV)
+
+ 
+```
+
+
+### Drought Risks
+
+```{r}
+# pal<- brewer.pal(8, "Purples")
+
+ 
+df.csv %>%
+  filter(Sum_dryVal > 0) -> Dry
+bins <- c(0, 2, 8, 20, 50, 100, 200,400, 620)
+pal <- colorBin("YlGn", domain = Slope$Sum_slopVa , bins = bins)
+
+labels <- sprintf(
+  "%s , <strong>%s</strong><br/>%g index",
+  Dry$County,", ", Dry$Country, ", ", Dry$Sum_dryVal
+) %>% lapply(htmltools::HTML)
+
+map2 <- leaflet(Dry) %>% 
+  addTiles() %>% 
+  setView(lng=103.0, lat =10.0, zoom = 5)
+
+map2%>% 
+  addCircleMarkers(~longitude, ~latitute, radius =~ Sum_dryVal/50, color = ~pal(Sum_dryVal), fillOpacity = 1.0, popup = paste(Dry$Sum_dryVal, "score , "    ,Dry$County, ", ", Dry$Country)) %>%
+  addLegend("bottomleft", pal=pal, title="Dry Risk Intensity", labels = labels, value = ~Sum_dryVal)
+
+```
+
+### Frost Risks
+
+```{r}
+# pal<- brewer.pal(8, "PuBu")
+ 
+df.csv %>%
+  filter(Sum_frsVak > 0) -> Frost
+labels <- sprintf(
+  "%s , <strong>%s</strong><br/>%g index",
+  Frost$County,", ", Frost$Country, ", ", Frost$Sum_frsVak
+) %>% lapply(htmltools::HTML)
+
+bins <- c(0, 2, 8, 20, 50, 100, 200,400, 510)
+pal <- colorBin("PuBu", domain = Slope$Sum_slopVa , bins = bins)
+# Radius <- sqrt(Frost$Sum_frsVak) 
+
+map3 <- leaflet(Frost) %>% 
+  addTiles() %>% 
+  setView(lng=103.0, lat =10.0, zoom = 5)
+
+map3%>% 
+  addCircleMarkers(~longitude, ~latitute, radius = ~Sum_frsVak/40, color = ~pal(Sum_frsVak), fillOpacity = 1.0, popup = paste(Frost$Sum_frsVak, "score , ",Frost$County, ", ",   Frost$Country)) %>%
+  addLegend("bottomleft", pal=pal, title="Frost Risk Intensity", labels = labels, value = ~Sum_frsVak)
+
+```
+
+
+### Average Natural Rubber Yield (kg/ha.year)
+
+```{r}
+library(ggplot2)
+library(ggthemes)
+library(plotly)
+library(RColorBrewer)
+
+Country <- c('China','Indonesia','Cambodia','Laos','Myanmmar','Malaysia','Thailand','Vietnam')
+Yield <- c(1256, 994, 1206, 780, 754, 1092, 1640, 1717)
+MiniWage <- c(9, 6, 5, 5, 4, 10, 8, 6)
+DR.r <- c(0.08, 0.078, 0.15, 0.13, 0.14, 0.06, 0.09, 0.11)
+df <- data.frame(Country,Yield,MiniWage,DR.r)
+
+p1 <- ggplot(df, aes(x=Country, y= Yield)) + geom_bar(stat="identity", fill="orange")  + theme_minimal()
+ggplotly(p1)
+
+```
+
+### Minimum Wage for the 8 Countries (USD/day)
+
+```{r}
+p2 <- ggplot(df, aes(x=Country, y= MiniWage)) +geom_bar(stat="identity", fill="#bc42ed")  + theme_minimal()
+ggplotly(p2)
+```
+
+### 10 years Rubber price
+
+```{r}
+library(zoo)
+library(dygraphs)
+library(magrittr)
+Price$Date <- as.numeric(paste(Price$Date, "01", sep= ""))
+Price.ts1 <- zoo(Price$Price.USD.kg, order.by=as.Date(as.character(Price$Date), format='%Y%m%d'))
+Price.ts<- ts(Price.ts1,start=c(2006,9),end=c(2016,9),frequency=12)
+dygraph(Price.ts, main = "Global Natural Rubber Price (USD/kg)") %>% 
+  dyRangeSelector(dateWindow = c("2006-09-01", "2016-09-01"))
+```
